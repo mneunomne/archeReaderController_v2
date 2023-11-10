@@ -104,40 +104,29 @@ class MachineController {
     current_row_index=0;
   }
 
-  void runRow () {
+  void runRect () {
     lastDir = 1;
-    machineState = RUNNING_ROW;
-    moveX(ROW_STEPS);
+    machineState = RUNNING_RECT;
+    moveX(RECT_WIDTH);
   }
   
-  void runRowInverse () {
+  void runRectInverse () {
     lastDir = -1;
-    machineState = RUNNING_ROW_INVERSE;
-    moveX(-ROW_STEPS);
+    machineState = RUNNING_RECT_INVERSE;
+    moveX(-RECT_WIDTH);
   }
 
   void jumpRow () {
-    current_row_index+=ammountReadingPoints;
+    current_row_index+=1;
     machineState = JUMPING_ROW;
-    moveY(UNIT_STEPS * ammountReadingPoints);
+    moveY(RECT_HEIGHT);
   }
 
-  void runPictureSteps() {
-    pictureIndex = 0;
-    setInitialPosition();
-    machineState = RUNNING_PICTURE_STEPS;
-    cam.saveImage(accumulated_x, accumulated_y, pictureIndex);
-    moveX(PICTURE_STEPS);
-  }
 
   void runPlate () {
-    if (ammountReadingPoints > 1) {
-      // need to move the camera down before it starts
-    } else {
-      setInitialPosition();
-      machineState = READING_PLATE;
-      moveX(ROW_STEPS);
-    }
+    setInitialPosition();
+    machineState = READING_PLATE;
+    moveX(RECT_WIDTH);
   }
 
   void listenToSerialEvents () {
@@ -165,19 +154,12 @@ class MachineController {
   void onMovementStart () {
     timeStarted=millis();
     switch (macroState) {
-      case READING_ROW:
-      case READING_ROW_INVERSE:
+      case READING_RECT:
+      case READING_RECT_INVERSE:
       case READING_PLATE:
-      switch (machineState) {
-        case RUNNING_ROW_INVERSE:
-          // interpret signal
-          decoder.startReadingRowInverted();
-          break;
-        case RUNNING_ROW:
-          // interpret signal
-          decoder.startReadingRow();
-          break;
-      }
+        // no need to do anything
+        println("[MachineController] onMovementStart");
+        break;
     }
   }
 
@@ -187,44 +169,19 @@ class MachineController {
     switch (macroState) {
       case STOP_MACHINE:
       case RUNNING_WASD_COMMAND:
-        // after these events, no reading is involved
         macroState = MACRO_IDLE;
         machineState = MACHINE_IDLE;
         break;
-      case READING_ROW:
-        // interpret signal and push to database? (or does this happen live)
+      case READING_RECT:
         macroState = MACRO_IDLE;
         machineState = MACHINE_IDLE;
-        decoder.endReading(false);
         break;
-      case READING_ROW_INVERSE:
-        // interpret signal inverted
+      case READING_RECT_INVERSE:
         macroState = MACRO_IDLE;
         machineState = MACHINE_IDLE;
-        decoder.endReading(true);
         break;
       case READING_PLATE:
         onMovementEndReadingPlate();
-        break;
-      case TAKE_PICTURES:
-        println("accumulated_x: " + accumulated_x + " accumulated_y: " + accumulated_y);
-        pictureIndex+=1;
-        // wait half a second
-        cam.saveImage(abs(accumulated_x), accumulated_y, pictureIndex);
-        if (abs(accumulated_x) < ROW_STEPS) {
-          if (nextDir == '+') {
-            moveX(PICTURE_STEPS);
-          } else {
-            moveX(-PICTURE_STEPS);
-          }
-        } else if (accumulated_y < COLS_STEPS){
-          accumulated_x=0;
-          nextDir = nextDir == '+' ? '-' : '+';
-          moveY(int(PICTURE_STEPS/2));
-        } else {
-          macroState = MACRO_IDLE;
-          machineState = MACHINE_IDLE;
-        }
         break;
     }
   }
@@ -232,35 +189,32 @@ class MachineController {
   // unifying all the decisions if the current macro state is reading plate. 
   void onMovementEndReadingPlate () {
     switch (machineState) {
-      case RUNNING_ROW_INVERSE:
-        // interpret signal
+      case RUNNING_RECT_INVERSE:
         // jump to next row
-        if (current_row_index + ammountReadingPoints < PLATE_ROWS-1) {
+        if (current_row_index < PLATE_ROWS-1) {
           //jumpRow();
           rowDelay=true;
         } else { // ended reading plate
           returnToTopOffeset(-1);
           // returnToTop();
         }
-        decoder.endReading(true); // is inverted
         break;
-      case RUNNING_ROW:
+      case RUNNING_RECT:
         // interpret signal
         // jump to next row
-        if (current_row_index + ammountReadingPoints < PLATE_ROWS-1) {
+        if (current_row_index < PLATE_ROWS-1) {
           //jumpRow();
           rowDelay=true;
         } else { // ended reading plate
           returnToTopOffeset(1);
           // returnToTop();
         }
-        decoder.endReading(false); // is inverted
         break;
       case JUMPING_ROW: 
         if (lastDir < 0) {
-          runRow();
+          runRect();
         } else {
-          runRowInverse();
+          runRectInverse();
         }
         break;
       // after offset side, go to top
@@ -274,9 +228,9 @@ class MachineController {
       // after reset offset, start reading again
       case RESET_OFFSET:
         if (lastDirOffset < 0) {
-          runRow();
+          runRect();
         } else {
-          runRowInverse();
+          runRectInverse();
         }
         break;
     }

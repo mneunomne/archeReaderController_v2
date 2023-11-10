@@ -9,14 +9,12 @@ import processing.video.*;
 import processing.serial.*;
 import netP5.*;
 import oscP5.*;
-import codeanticode.syphon.*;
 
 boolean debug = false;
 
 Gui gui;
 Camera cam;
 MachineController machineController;
-Decoder decoder;
 OscController oscController;
 
 int [] last_values = new int [100];
@@ -37,121 +35,71 @@ int COLS_STEPS = 23082; // origonal was 23083
 
 int OFFSET_STEPS = 4000;
 
-int PICTURE_STEPS = floor(ROW_STEPS / 5);
-
 int PLATE_COLS = 192;
 int PLATE_ROWS = 265;
 // int PLATE_ROWS = 21;
+
+
+int RECT_WIDTH = 192;
+int RECT_HEIGHT = 265;
+int RECT_GAP = 0;
 
 static int MARGIN = 10;
 
 boolean savingFrame = false;
 
 // Macro States
+int one = 0;
 static final int MACRO_IDLE                 = 0;
 static final int RUNNING_WASD_COMMAND       = 1;
-static final int READING_UNIT               = 2;
-static final int READING_ROW                = 3;
-static final int READING_ROW_INVERSE        = 4;
+static final int READING_RECT               = 3;
+static final int READING_RECT_INVERSE       = 4;
 static final int READING_PLATE              = 5;
 static final int STOP_MACHINE               = 6;
-static final int TAKE_PICTURES              = 7;
 int macroState = 0;
 String [] macroStates = {
   "MACRO_IDLE",
   "RUNNING_WASD_COMMAND",
-  "READING_UNIT",
-  "READING_ROW",
-  "READING_ROW_INVERSE",
+  "READING_RECT",
+  "READING_RECT_INVERSE",
   "READING_PLATE",
   "STOP_MACHINE",
-  "RETURNING_TOP",
-  "TAKE_PICTURES"
 };
 
 // Machine States
 static final int MACHINE_IDLE               = 0;
-static final int RUNNING_ROW_INVERSE        = 1;
-static final int RUNNING_ROW                = 2;
+static final int RUNNING_RECT_INVERSE       = 1;
+static final int RUNNING_RECT               = 2;
 static final int JUMPING_ROW                = 3;
-static final int RUNNING_UNIT               = 4;
 static final int RUNNING_WASD               = 5;
 static final int RETURNING_TOP              = 6;
-static final int RUNNING_PICTURE_STEPS      = 7;
 static final int RETURNING_TOP_OFFSET       = 8;
 static final int RESET_OFFSET               = 9;
 int machineState = 0;
 String [] machineStates = {
   "MACHINE_IDLE",
-  "RUNNING_ROW_INVERSE",
-  "RUNNING_ROW",
-  "JUMPING_ROW",
-  "RUNNING_UNIT", 
+  "RUNNING_RECT_INVERSE",
+  "RUNNING_RECT",
   "RUNNING_WASD",
   "RETURNING_TOP",
-  "RUNNING_PICTURE_STEPS",
   "RETURNING_TOP_OFFSET",
   "RESET_OFFSET"
 };
-
-// Decoder States
-static final int DECODER_IDLE               = 0;
-static final int READING_ROW_DATA           = 1;
-static final int READING_ROW_DATA_INVERTED  = 2;
-static final int SENDING_ORIGINAL_DATA      = 3;
-int decoderState = 0;
-String [] decoderStates = {"DECODER_IDLE","READING_ROW_DATA","READING_ROW_DATA_INVERTED", "SENDING_ORIGINAL_DATA"};
-
-// Camera States
-static final int CAMERA_IDLE                = 0;
-static final int READ_CENTER_VALUE          = 1;
-static final int READ_MULTIPLE_VALUES       = 2;
-int cameraState = 0;
-String [] cameraStates = {"CAMERA_IDLE","READ_CENTER_VALUE","READ_MULTIPLE_VALUES"};
 
 int threshold   = 150;
 int small_steps = 250;
 int big_steps   = 8000;
 int current_row_index = 0;
+int current_col_index = 0;
 
 int currentReadTime = 0;
 
-
-float INTERVAL = 3.2083333;
-
-int ROW_TIME = 16895;//16948;
-
-// ArrayList<Integer> currentRowIndexes = new ArrayList<Integer>(); 
-
 int small_steps_default = UNIT_STEPS;
 int big_steps_default   = ROW_STEPS;
-int reading_points_default = 7; 
-int ammountReadingPoints = 7; 
-int threshold_default   = 168;
 int lastDir = 0; 
-float noise_scale_default = 0.5;
-float noise_step_default = 0.005;
-float noiseScale = noise_scale_default;
-float noiseSteps = noise_step_default;
-int unit_size_default = 14;
-int unitPixelSize = unit_size_default;
 
-float real_original_balance_default = 0.85;
-float real_original_balance = 0.5;
-
-int reading_row_interval_default = 5000;
-int reading_row_interval = reading_row_interval_default;
-
-int [][] lastBits = new int[ammountReadingPoints][8];  
-int [] lastBytes = new int [ammountReadingPoints];
-
-/* Debug variables */
-boolean sendOriginalData = false;
-boolean sendMergedData = true;
-
-// original numbers audioloadJSONArray
-JSONArray originalNumbersJSON;
-int [] originalNumbers;
+int reading_rect_interval_default = 5000;
+int reading_rect_interval = reading_rect_interval_default;
 
 PFont myFont;
 
@@ -161,7 +109,7 @@ void setup() {
   
   frameRate(30);
 
-  size(1080, 1920, P2D);
+  size(576, 1024, P2D); // much smaller
 
   smooth();
   
@@ -175,13 +123,9 @@ void setup() {
   ControlP5 cp5 = new ControlP5(this);
   gui = new Gui(cp5);
   gui.init();
-
-  decoder = new Decoder();
   
   oscController = new OscController(this);
   oscController.connect();
-  // CREATE A NEW SPOUT OBJECT
-
 
   myFont = createFont("PTMono-Regular", 9);
   textFont(myFont);
@@ -195,12 +139,9 @@ void loadConfig() {
   // load json file data/config.json
 }
 
-
 void draw() {
   background(0);
   
-  // constantly listening to events from arduino
-
   // display camera in interface
   cam.update();
   cam.display();
@@ -209,27 +150,16 @@ void draw() {
   // gui.updateChart(currentCameraValue);
   gui.display();
 
-  // display decoding interface
-  decoder.update();
-  decoder.display();
-
   machineController.listenToSerialEvents();
   machineController.update();
 
   // oscController.update();
 
-  if (savingFrame) {
-    saveFrame("frame-######.jpg");
-  }
 }
 
 /*
   ControlP5 listeners
 */
-
-void threshold_slider (float value) {
-  threshold = floor(value);
-}
 
 void small_steps_slider (float value) {
   small_steps = floor(value);
@@ -241,60 +171,31 @@ void big_steps_slider (float value) {
   println("big_steps_slider", value, big_steps);
 }
 
-void reading_points_slider (float value) {
-  ammountReadingPoints = int(value);
+void reading_rect_interval_slider (float value) {
+  reading_rect_interval = int(value);
 }
-void noise_scale_slider (float value) {
-  noiseScale = value;
-}
-
-void noise_step_slider (float value) {
-  noiseSteps = value;
-}
-
-void unit_size (float value) {
- unitPixelSize = int(value);  
-}
-
-void reading_row_interval_slider (float value) {
-  reading_row_interval = int(value);
-}
-
-void real_original_balance_slider (float value) {
-  real_original_balance = value;
-}
-
 
 /*
   ControlP5 Bang Buttons
 */
 
 void read_row_inverse () {
-  macroState = READING_ROW_INVERSE;
-  machineController.runRowInverse();
+  macroState = READING_RECT_INVERSE;
+  machineController.runRectInverse();
 }
 
 void read_row () {
-  macroState = READING_ROW;
-  machineController.runRow();
+  macroState = READING_RECT;
+  machineController.runRect();
 }
 
 void read_plate () {
   macroState = READING_PLATE;
-  machineController.runRow();
+  machineController.runRect();
 }
 
 void stop_machine () {
   macroState = STOP_MACHINE;
-}
-
-void take_pictures () {
-  macroState = TAKE_PICTURES;
-  machineController.runPictureSteps();
-}
-
-void take_one_picture () {
-  cam.takePicture();
 }
 
 void wasd_command (char key) {
@@ -312,17 +213,6 @@ void wasd_command (char key) {
     case 'S': machineController.moveY(-big_steps); break;
     case 'D': machineController.moveX(-big_steps); break;
   }
-}
-
-void original_data (boolean value) {
-  sendOriginalData = value;
-}
-
-void merge_data (boolean value) {
-  sendMergedData = value;
-}
-void save_frame (boolean value) {
-  savingFrame = value;
 }
 
 void toggleDebug (boolean value) {
