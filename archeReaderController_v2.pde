@@ -17,7 +17,6 @@ boolean debug = true;
 
 Gui gui;
 MachineController machineController;
-OscController oscController;
 
 int [] last_values = new int [100];
 
@@ -113,9 +112,6 @@ void setup() {
   ControlP5 cp5 = new ControlP5(this);
   gui = new Gui(cp5);
   gui.init();
-  
-  oscController = new OscController(this);
-  oscController.connect();
 
   myFont = createFont("PTMono-Regular", 9);
   textFont(myFont);
@@ -138,9 +134,6 @@ void draw() {
     machineController.listenToSerialEvents();
     machineController.update();
   }
-
-  // oscController.update();
-
 }
 
 /*
