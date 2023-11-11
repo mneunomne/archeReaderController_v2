@@ -20,6 +20,9 @@ public class Gui {
     cp5.setColorBackground(color(0, 150));
     sliders();
     buttons();
+    if (debug) {
+      showDebugElements();
+    }
   }
 
   void sliders () {
@@ -35,29 +38,29 @@ public class Gui {
   void buttons () {
     // Group bangButtons = cp5.addGroup("bangButtons").setPosition(width-100-margin,margin).setWidth(100);
     int fx = width - 100 - margin;
-    int fy = margin; 
+    int fy = margin * 2 + cp_height; 
     int button_w = 30;
     int button_h = 15;
     
-    cp5.addBang("start")
+    cp5.addBang("read_rect")
       .setPosition(fx, fy)
       .setSize(button_w, button_h)
       ;
     fy+= button_h+margin+10;
     
-    cp5.addBang("stop")
+    cp5.addBang("read_rect_inverse")
       .setPosition(fx, fy)
       .setSize(button_w, button_h)
       ;
     fy+= button_h+margin+10;
 
-    cp5.addBang("next_rect")
+    cp5.addBang("read_plate")
       .setPosition(fx, fy)
       .setSize(button_w, button_h)
       ;
     fy+= button_h+margin+10; 
     
-    cp5.addBang("reset")
+    cp5.addBang("stop_machine")
       .setPosition(fx, fy)
       .setSize(button_w, button_h)
       ;
@@ -69,8 +72,8 @@ public class Gui {
   void display () {
     fill(255);
     if (debug) {
-      int fy = margin * 2;
-      int fx = margin*3+chart_w;
+      int fy = (margin * 2) + cp_height;
+      int fx = margin;
       text("frameRate: " + frameRate, fx,fy);
       fy+=margin+5;
       text("timeElapsed: " + millis()/1000, fx,fy);
@@ -85,10 +88,10 @@ public class Gui {
   }
 
   void hideButtons () {
-    cp5.getController("start").hide();
-    cp5.getController("stop").hide();
-    cp5.getController("next_rect").hide();
-    cp5.getController("reset").hide();
+    cp5.getController("read_rect_inverse").hide();
+    cp5.getController("read_rect").hide();
+    cp5.getController("read_plate").hide();
+    cp5.getController("stop_machine").hide();
   }
 
   void showDebugElements () {
@@ -100,9 +103,9 @@ public class Gui {
   }
   
   void showButtons () {
-    cp5.getController("start").show();
-    cp5.getController("stop").show();
-    cp5.getController("next_rect").show();
-    cp5.getController("reset").show();
+    cp5.getController("read_rect_inverse").show();
+    cp5.getController("read_rect").show();
+    cp5.getController("read_plate").show();
+    cp5.getController("stop_machine").show();
   }
 }

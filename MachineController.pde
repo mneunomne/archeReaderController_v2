@@ -7,29 +7,20 @@ class MachineController {
   String lastMovement;
 
   int timeStarted=0;
-
   int nextInterval=500; // in millis
-
   int readingRowInterval = 5000;
-
   int timeFinnishedRow=0;
-
   boolean rowDelay = false; 
-
   int portIndex = 1;
-
   int pictureIndex = 0;  
-
   char nextDir = '+';
-
   boolean noMachine = false;
-
   int lastDirOffset = 0; 
 
   MachineController(PApplet parent, boolean _noMachine) {
     // if no machine, don't connect to serial
     noMachine = _noMachine;
-    if (noMachine) return; 
+    if (noMachine) return;
     // Connect to Serial
     print("[MachineController] SerialList: ");
     printArray(Serial.list());

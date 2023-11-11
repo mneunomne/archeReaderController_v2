@@ -9,25 +9,17 @@ import processing.video.*;
 import processing.serial.*;
 import netP5.*;
 import oscP5.*;
+import processing.net.*; 
 
-boolean debug = false;
+Client myClient;
+
+boolean debug = true;
 
 Gui gui;
-Camera cam;
 MachineController machineController;
 OscController oscController;
 
 int [] last_values = new int [100];
-
-/* GLOBALS */
-// "10.10.49.32";
-String MAX_ADDRESS = "127.0.0.1"; //"10.10.48.52";
-int MAX_PORT = 12000;
-int LOCAL_PORT = 8003;
-
-// Parallel, run on same computer on this case
-String PARALLEL_ADDRESS = "127.0.0.1";
-int PARALLEL_PORT = 12001;
 
 int UNIT_STEPS = 88;
 int ROW_STEPS = 16725;
@@ -37,8 +29,6 @@ int OFFSET_STEPS = 4000;
 
 int PLATE_COLS = 192;
 int PLATE_ROWS = 265;
-// int PLATE_ROWS = 21;
-
 
 int RECT_WIDTH = 192;
 int RECT_HEIGHT = 265;
@@ -103,20 +93,20 @@ int reading_rect_interval = reading_rect_interval_default;
 
 PFont myFont;
 
-boolean noMachine = false;
+boolean noMachine = true;
 
 void setup() {
   
   frameRate(30);
 
-  size(576, 1024, P2D); // much smaller
+  size(400, 400, P2D); // much smaller
+
+  // connect to socket
+  myClient = new Client(this, "0.0.0.0", 3000); 
 
   smooth();
   
   loadConfig();
-
-  cam = new Camera(this);
-  cam.init();
 
   machineController = new MachineController(this, noMachine);
 
@@ -129,7 +119,6 @@ void setup() {
 
   myFont = createFont("PTMono-Regular", 9);
   textFont(myFont);
-  // printArray(PFont.list());
 
   // set initial debug state
   toggleDebug(false);
@@ -141,17 +130,14 @@ void loadConfig() {
 
 void draw() {
   background(0);
-  
-  // display camera in interface
-  cam.update();
-  cam.display();
 
   // update gui chart with the value from the camera 
   // gui.updateChart(currentCameraValue);
   gui.display();
-
-  machineController.listenToSerialEvents();
-  machineController.update();
+  if (!noMachine) {
+    machineController.listenToSerialEvents();
+    machineController.update();
+  }
 
   // oscController.update();
 
@@ -179,12 +165,12 @@ void reading_rect_interval_slider (float value) {
   ControlP5 Bang Buttons
 */
 
-void read_row_inverse () {
+void read_rect_inverse () {
   macroState = READING_RECT_INVERSE;
   machineController.runRectInverse();
 }
 
-void read_row () {
+void read_rect () {
   macroState = READING_RECT;
   machineController.runRect();
 }
@@ -224,6 +210,24 @@ void toggleDebug (boolean value) {
   }
 }
 
+import http.requests.*;
+
+void sendMessage (String route, String message) {
+  println("sendMessage");
+  GetRequest get = new GetRequest("http://0.0.0.0:3000/" + route + "/" + message);
+  get.send();
+  System.out.println("Reponse Content: " + get.getContent());
+  System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
+}
+
+void testSocket () {
+  println("testSocket");
+  GetRequest get = new GetRequest("http://0.0.0.0:3000/test/" + machineState);
+  get.send();
+  System.out.println("Reponse Content: " + get.getContent());
+  System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
+}
+
 // wasd movement keys
 void keyPressed() {
   switch (key) {
@@ -237,5 +241,6 @@ void keyPressed() {
     case 'S': 
     case 'D': wasd_command(key); break;
     case '.': toggleDebug(!debug); break;
+    case 't': testSocket(); break;
   }
 }
