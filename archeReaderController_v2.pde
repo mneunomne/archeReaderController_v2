@@ -221,6 +221,14 @@ void testSocket () {
   System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
 }
 
+void sendSegmentSocket (int segmentIndex) {
+  println("sendSegmentSocket");
+  GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + segmentIndex);
+  get.send();
+  System.out.println("Reponse Content: " + get.getContent());
+  System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
+}
+
 // wasd movement keys
 void keyPressed() {
   switch (key) {
@@ -235,5 +243,6 @@ void keyPressed() {
     case 'D': wasd_command(key); break;
     case '.': toggleDebug(!debug); break;
     case 't': testSocket(); break;
+    case '1': sendSegmentSocket(10); break;
   }
 }
