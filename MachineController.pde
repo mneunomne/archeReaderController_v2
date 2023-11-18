@@ -1,21 +1,22 @@
 class MachineController {
-  Serial port;  // Create object from Serial class
+  Serial port;    // Create object from Serial class
   String val;     // Data received from the serial port
+  
+  // in order to go back to the beggining
   int accumulated_x = 0;
   int accumulated_y = 0;
-  boolean isRunning;
+  
   String lastMovement;
 
   int timeStarted=0;
-  int nextInterval=500; // in millis
-  int readingRowInterval = 5000;
-  int timeFinnishedRow=0;
-  boolean rowDelay = false; 
+  
   int portIndex = 1;
-  int pictureIndex = 0;  
-  char nextDir = '+';
-  boolean noMachine = false;
   int lastDirOffset = 0; 
+  int readingSegmentInterval = 5000;
+
+  boolean noMachine = false;
+
+  boolean waitNextMovement = false;
 
   MachineController(PApplet parent, boolean _noMachine) {
     // if no machine, don't connect to serial
@@ -29,17 +30,61 @@ class MachineController {
   }
 
   void update () {
-    // add a delay before reading next row
-    if (rowDelay) {
-      if (millis() >= timeFinnishedRow+readingRowInterval) {
-        jumpRow();
-        rowDelay=false;
+    if (waitNextMovement) {
+      if (millis() - timeStarted > readingSegmentInterval) {
+        waitNextMovement = false;
+        startMovement();
       }
     }
   }
 
-  void startReading () {
-    isRunning = true;
+  void startMovement() {
+    int in_row_index = current_segment_index % segment_rows;
+    println("startMovement", macroStates[macroState], nextDir, in_row_index, current_row_index, segment_rows);
+    if (nextDir == 1) { // if it was moving right
+      if (current_col_index < segment_cols - 1) {
+        // continue moving same direction
+        macroState = READING_RECT;
+        moveX(RECT_WIDTH);
+        current_col_index+=1;
+      } else { // if at the end of the row 
+        if (current_row_index < segment_rows-1) {
+          // jump row
+          jumpRow();
+        } else { // end reading plate
+          returnToTopOffeset(1);
+          current_segment_index=segment_cols-1;
+          nextDir = -1;
+        }
+      }
+    } else { // if it was moving left
+      if (current_col_index > 0) {
+        macroState = READING_RECT_INVERSE;
+        moveX(-RECT_WIDTH);
+        current_col_index-=1;
+      } else { // if at the end of the row 
+        if (current_row_index < segment_rows-1) {
+          // jump row
+          jumpRow();
+        } else { // end reading plate
+          returnToTopOffeset(-1);
+          current_segment_index=0;
+          nextDir = 1;
+        }
+      }
+    }
+  }
+
+  void goToNextSegment() {
+    println("goToNextSegment", lastDir);
+    
+    if (nextDir == 0) {
+      nextDir = 1;
+      macroState = READING_RECT;
+    }
+
+    timeStarted = millis();
+    waitNextMovement = true;
   }
 
   void setInitialPosition () {
@@ -47,77 +92,51 @@ class MachineController {
     accumulated_y = 0;
   }
 
-  void goBackToInitialPosition () {
-    moveDiagonally(-accumulated_x, -accumulated_y);
-  }
-
   void moveX (int steps) {
-    this.accumulated_x = this.accumulated_x+steps;
     char dir = steps > 0 ? '+' : '-';
     sendMovementCommand(dir, abs(steps), 'x');
   }
 
   void moveY (int steps) {
-    accumulated_y=+steps;
     char dir = steps > 0 ? '+' : '-';
     sendMovementCommand(dir, abs(steps), 'y');
   }
-
-  void moveDiagonally (int stepsX, int stepsY) {}
 
   void sendMovementCommand (char dir, int value, char axis) {
     // e.g.: +100x
     String s = dir + String.valueOf(value) + axis;
     lastMovement = s;
-    println("[MachineController] sending: " + s);
+    // println("[MachineController] sending: " + s);
     port.write(s);
   }
 
   void returnToTopOffeset (int dir) {
     println("returnToTopOffeset!", dir);
     lastDirOffset = dir;
-    machineState = RETURNING_TOP_OFFSET;
+    macroState = RETURNING_TOP_OFFSET;
     moveX(dir * OFFSET_STEPS);
     // moveY(-UNIT_STEPS*current_row_index);
   }
 
   void resetOffset () {
     println("resetOffset!");
-    machineState = RESET_OFFSET;
+    macroState = RESET_OFFSET;
     moveX(-lastDirOffset * OFFSET_STEPS);
     // moveY(-UNIT_STEPS*current_row_index);
   }
 
   void returnToTop () {
     println("returnToTop!");
-    machineState = RETURNING_TOP;
-    moveY(-UNIT_STEPS*current_row_index);
+    macroState = RETURNING_TOP;
+    moveY(-accumulated_y);
     current_row_index=0;
-  }
-
-  void runRect () {
-    lastDir = 1;
-    machineState = RUNNING_RECT;
-    moveX(RECT_WIDTH);
-  }
-  
-  void runRectInverse () {
-    lastDir = -1;
-    machineState = RUNNING_RECT_INVERSE;
-    moveX(-RECT_WIDTH);
   }
 
   void jumpRow () {
     current_row_index+=1;
-    machineState = JUMPING_ROW;
+    macroState = JUMPING_ROW;
+    accumulated_y+=RECT_HEIGHT;
     moveY(RECT_HEIGHT);
-  }
-
-
-  void runPlate () {
-    setInitialPosition();
-    machineState = READING_PLATE;
-    moveX(RECT_WIDTH);
   }
 
   void listenToSerialEvents () {
@@ -125,15 +144,14 @@ class MachineController {
       val = port.readStringUntil('\n');         // read it and store it in val
       if (val.length() > 0) {
         char c = val.charAt(0);
-        println("[MachineController] listenToSerialEvents", c); //print it out in the console
+        // println("[MachineController] listenToSerialEvents", c); //print it out in the console
         // start
         switch (c) {
           case 's': // start
-            println("[MachineController] movement start", macroStates[macroState]);
-            onMovementStart();
+            // println("[MachineController] movement start", macroStates[macroState]);
             break;
           case 'e': // end
-            println("[MachineController] movement over: ", lastMovement);
+            // println("[MachineController] movement over: ", lastMovement);
             if (lastMovement == null) return; // sometimes there is leftover event coming from arduino
             onMovementEnd();
             break;
@@ -142,87 +160,41 @@ class MachineController {
     }
   }
 
-  void onMovementStart () {
-    timeStarted=millis();
-    switch (macroState) {
-      case READING_RECT:
-      case READING_RECT_INVERSE:
-      case READING_PLATE:
-        // no need to do anything
-        println("[MachineController] onMovementStart");
-        break;
-    }
-  }
-
   void onMovementEnd () {
-    int timeSpent = millis()-timeStarted;
-    timeFinnishedRow = millis();
+    // println("[MachineController] onMovementEnd", macroStates[macroState], current_segment_index, current_row_index, segment_rows);
     switch (macroState) {
       case STOP_MACHINE:
       case RUNNING_WASD_COMMAND:
         macroState = MACRO_IDLE;
-        machineState = MACHINE_IDLE;
         break;
       case READING_RECT:
-        macroState = MACRO_IDLE;
-        machineState = MACHINE_IDLE;
+        current_segment_index+=1;
+        sendSegmentSocket(current_segment_index);
         break;
       case READING_RECT_INVERSE:
-        macroState = MACRO_IDLE;
-        machineState = MACHINE_IDLE;
+        current_segment_index-=1;
+        sendSegmentSocket(current_segment_index);
         break;
-      case READING_PLATE:
-        onMovementEndReadingPlate();
-        break;
-    }
-  }
-
-  // unifying all the decisions if the current macro state is reading plate. 
-  void onMovementEndReadingPlate () {
-    switch (machineState) {
-      case RUNNING_RECT_INVERSE:
-        // jump to next row
-        if (current_row_index < PLATE_ROWS-1) {
-          //jumpRow();
-          rowDelay=true;
-        } else { // ended reading plate
-          returnToTopOffeset(-1);
-          // returnToTop();
-        }
-        break;
-      case RUNNING_RECT:
-        // interpret signal
-        // jump to next row
-        if (current_row_index < PLATE_ROWS-1) {
-          //jumpRow();
-          rowDelay=true;
-        } else { // ended reading plate
-          returnToTopOffeset(1);
-          // returnToTop();
-        }
-        break;
-      case JUMPING_ROW: 
-        if (lastDir < 0) {
-          runRect();
+      case JUMPING_ROW:
+        if (nextDir == 1) {
+          nextDir = -1;
+          current_segment_index += segment_rows;
         } else {
-          runRectInverse();
+          nextDir = 1;
+          current_segment_index+=1;
         }
+        // nextDir = nextDir * -1;
+        sendSegmentSocket(current_segment_index);
         break;
-      // after offset side, go to top
       case RETURNING_TOP_OFFSET:
+        // resetOffset();
         returnToTop();
         break;
-      // after go to top, reset offset
       case RETURNING_TOP:
         resetOffset();
-        break; 
-      // after reset offset, start reading again
+        break;
       case RESET_OFFSET:
-        if (lastDirOffset < 0) {
-          runRect();
-        } else {
-          runRectInverse();
-        }
+        sendSegmentSocket(current_segment_index);
         break;
     }
   }
