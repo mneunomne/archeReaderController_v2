@@ -130,6 +130,7 @@ class MachineController {
     macroState = RETURNING_TOP;
     moveY(-accumulated_y);
     current_row_index=0;
+    setInitialPosition();
   }
 
   void jumpRow () {

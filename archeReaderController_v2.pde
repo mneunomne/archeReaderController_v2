@@ -2,13 +2,15 @@
  * Arche-Scripttures
  * Processing reading controller
  */
-
+import websockets.*;
 import java.util.*;
 import controlP5.*;
 import processing.serial.*;
 import netP5.*;
 import oscP5.*;
 import processing.net.*; 
+
+WebsocketServer ws;
 
 Client myClient;
 
@@ -71,7 +73,7 @@ int segment_rows = 2;
 int segment_cols = 2;
 
 int RECT_HEIGHT = 6000; // 6000
-int RECT_WIDTH  = 6000; // 6000
+int RECT_WIDTH  = 5000; // 6000
 
 int current_row_index = 0;
 int current_col_index = 0;
@@ -80,14 +82,19 @@ boolean noMachine = false;
 
 static int MARGIN = 10;
 
+int now;
+
+
 void setup() {
   
   frameRate(30);
 
   size(400, 400, P2D); // much smaller
+  
+  ws= new WebsocketServer(this,8025,"/arche-scriptures");
 
   // connect to socket
-  myClient = new Client(this, "0.0.0.0", 3000); 
+  // myClient = new Client(this, "0.0.0.0", 3000); 
 
   smooth();
   
@@ -183,30 +190,35 @@ void sendMessage (String route, String message) {
   println("sendMessage");
   GetRequest get = new GetRequest("http://0.0.0.0:3000/" + route + "/" + message);
   get.send();
+  // ws.sendMessage("detection-" + get.getContent());
   System.out.println("Reponse Content: " + get.getContent());
   System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
 }
 
 void sendSegmentSocket (int segmentIndex) {
   macroState = SENDING_SEGMENT;
-  println("sendSegmentSocket");
-  GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + segmentIndex);
+  println("sendSegmentSocket", segmentIndex);
+  int idx = segmentIndex;
+  if (segmentIndex == 2) idx = 5;
+  if (segmentIndex == 3) idx = 6;
+  GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + idx);
   get.send();
   macroState = WAITING_RESPONSE;
+  ws.sendMessage("detection-" + get.getContent());
   System.out.println("Reponse Content: " + get.getContent());
   System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
-  if (get.getContent().equals("ok")) {
-    macroState = WAITING_TIME;
-    machineController.goToNextSegment();
-  } else {
-    macroState = ERROR;
-  }
+  //if (get.getContent().equals("ok")) {
+  macroState = WAITING_TIME;
+  machineController.goToNextSegment();
 }
 
 void readSegment (int segmentIndex) {
   macroState = SENDING_SEGMENT;
-  println("sendSegmentSocket");
-  GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + segmentIndex);
+  println("sendSegmentSocket", segmentIndex);
+  int idx = segmentIndex;
+  if (segmentIndex == 2) idx = 5;
+  if (segmentIndex == 3) idx = 6;
+  GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + idx);
   get.send();
   System.out.println("Reponse Content: " + get.getContent());
   System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
