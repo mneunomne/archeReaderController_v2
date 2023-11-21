@@ -12,20 +12,33 @@ class MachineController {
   
   int portIndex = 1;
   int lastDirOffset = 0; 
-  int readingSegmentInterval = 5000;
+  int readingSegmentInterval = reading_rect_interval;
 
   boolean noMachine = false;
 
   boolean waitNextMovement = false;
 
+  boolean sentMovementCommand = false;
+
+  int lastSentCommand = 0;
+
+  int commandWaitTime = 0;
+
+  String portName;
+
+  PApplet _parent;
+
+  boolean movementStarted = false;
+
   MachineController(PApplet parent, boolean _noMachine) {
     // if no machine, don't connect to serial
+    _parent = parent;
     noMachine = _noMachine;
     if (noMachine) return;
     // Connect to Serial
     print("[MachineController] SerialList: ");
     printArray(Serial.list());
-    String portName = Serial.list()[portIndex]; //change the 0 to a 1 or 2 etc. to match your port
+    portName = Serial.list()[portIndex]; //change the 0 to a 1 or 2 etc. to match your port
     port = new Serial(parent, portName, 9600);    
   }
 
@@ -36,9 +49,33 @@ class MachineController {
         startMovement();
       }
     }
+
+    if (sentMovementCommand) {
+      if (millis() - lastSentCommand > commandWaitTime) {
+        println("fake movement end", port.active(), port.available());
+        sentMovementCommand=false;
+        port.stop();
+        delay(1000);
+        printArray(Serial.list());
+        port = new Serial(_parent, portName, 9600);
+        delay(5000);
+        if (movementStarted) {
+          onMovementEnd();
+        } else {
+          port.write(lastMovement);
+        }
+        // print(port.active());
+        // onMovementEnd();
+      }
+    }
+
+    if (!port.active()) {
+      println("Connection lost. Reconnecting...");
+    }
   }
 
   void startMovement() {
+    sendClearMessage();
     int in_row_index = current_segment_index % segment_rows;
     println("startMovement", macroStates[macroState], nextDir, in_row_index, current_row_index, segment_rows);
     if (nextDir == 1) { // if it was moving right
@@ -76,7 +113,7 @@ class MachineController {
   }
 
   void goToNextSegment() {
-    println("goToNextSegment", lastDir);
+    println("goToNextSegment", nextDir);
     
     if (nextDir == 0) {
       nextDir = 1;
@@ -106,7 +143,11 @@ class MachineController {
     // e.g.: +100x
     String s = dir + String.valueOf(value) + axis;
     lastMovement = s;
-    // println("[MachineController] sending: " + s);
+    println("[MachineController] sending: " + s,  macroStates[macroState]);
+    sentMovementCommand = true;
+    lastSentCommand = millis();
+    commandWaitTime = value + 7000;
+    movementStarted = false;
     port.write(s);
   }
 
@@ -149,7 +190,8 @@ class MachineController {
         // start
         switch (c) {
           case 's': // start
-            // println("[MachineController] movement start", macroStates[macroState]);
+            println("[MachineController] movement start", macroStates[macroState]);
+            movementStarted = true;
             break;
           case 'e': // end
             // println("[MachineController] movement over: ", lastMovement);
@@ -162,7 +204,9 @@ class MachineController {
   }
 
   void onMovementEnd () {
-    // println("[MachineController] onMovementEnd", macroStates[macroState], current_segment_index, current_row_index, segment_rows);
+    sentMovementCommand = false;
+    delay(500);
+    println("[MachineController] onMovementEnd", macroStates[macroState], current_segment_index, current_row_index, segment_rows);
     switch (macroState) {
       case STOP_MACHINE:
       case RUNNING_WASD_COMMAND:
@@ -177,12 +221,11 @@ class MachineController {
         sendSegmentSocket(current_segment_index);
         break;
       case JUMPING_ROW:
+        current_segment_index += segment_rows;
         if (nextDir == 1) {
           nextDir = -1;
-          current_segment_index += segment_rows;
         } else {
           nextDir = 1;
-          current_segment_index+=1;
         }
         // nextDir = nextDir * -1;
         sendSegmentSocket(current_segment_index);

@@ -57,7 +57,7 @@ String [] macroStates = {
 int OFFSET_STEPS = 2000;
 
 int small_steps = 250;
-int big_steps   = 6000;
+int big_steps   = 5200;
 
 int lastDir = 0; 
 int nextDir = 0;
@@ -69,11 +69,11 @@ PFont myFont;
 
 int current_segment_index = 0;
 
-int segment_rows = 2;
-int segment_cols = 2;
+int segment_rows = 5;
+int segment_cols = 4;
 
-int RECT_HEIGHT = 6000; // 6000
-int RECT_WIDTH  = 5000; // 6000
+int RECT_HEIGHT = 5000; // 6000
+int RECT_WIDTH  = 5100; // 6000
 
 int current_row_index = 0;
 int current_col_index = 0;
@@ -84,12 +84,20 @@ static int MARGIN = 10;
 
 int now;
 
+boolean isRunTest=false;
+
 
 void setup() {
   
   frameRate(30);
 
   size(400, 400, P2D); // much smaller
+
+  if (isRunTest == true) {
+    RECT_HEIGHT = RECT_HEIGHT / 10;
+    RECT_WIDTH = RECT_WIDTH / 10;
+    reading_rect_interval = 500;
+  }
   
   ws= new WebsocketServer(this,8025,"/arche-scriptures");
 
@@ -168,10 +176,10 @@ void wasd_command (char key) {
     case 's': machineController.moveY(-small_steps); break;
     case 'd': machineController.moveX(-small_steps); break;
     /* big movements */
-    case 'W': machineController.moveY(big_steps); break;
-    case 'A': machineController.moveX(big_steps); break;
-    case 'S': machineController.moveY(-big_steps); break;
-    case 'D': machineController.moveX(-big_steps); break;
+    case 'W': machineController.moveY(RECT_HEIGHT); break;
+    case 'A': machineController.moveX(RECT_WIDTH); break;
+    case 'S': machineController.moveY(-RECT_HEIGHT); break;
+    case 'D': machineController.moveX(-RECT_WIDTH); break;
   }
 }
 
@@ -186,38 +194,36 @@ void toggleDebug (boolean value) {
 
 import http.requests.*;
 
-void sendMessage (String route, String message) {
-  println("sendMessage");
-  GetRequest get = new GetRequest("http://0.0.0.0:3000/" + route + "/" + message);
-  get.send();
-  // ws.sendMessage("detection-" + get.getContent());
-  System.out.println("Reponse Content: " + get.getContent());
-  System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
-}
-
 void sendSegmentSocket (int segmentIndex) {
   macroState = SENDING_SEGMENT;
   println("sendSegmentSocket", segmentIndex);
   int idx = segmentIndex;
-  if (segmentIndex == 2) idx = 5;
-  if (segmentIndex == 3) idx = 6;
+  // if (segmentIndex == 2) idx = 5;
+  // if (segmentIndex == 3) idx = 6;
+
+  if (isRunTest == true) {
+    macroState = WAITING_TIME;
+    machineController.goToNextSegment();
+    return;
+  }
   GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + idx);
   get.send();
   macroState = WAITING_RESPONSE;
-  ws.sendMessage("detection-" + get.getContent());
   System.out.println("Reponse Content: " + get.getContent());
   System.out.println("Reponse Content-Length Header: " + get.getHeader("Content-Length"));
-  //if (get.getContent().equals("ok")) {
+  if (get.getContent().equals("fail")) {
+     println("fail reading... continue");
+  } else {
+      ws.sendMessage("detection-" + get.getContent());  
+  }
   macroState = WAITING_TIME;
   machineController.goToNextSegment();
 }
 
-void readSegment (int segmentIndex) {
+void sendSegmentSocketTest (int segmentIndex) {
   macroState = SENDING_SEGMENT;
   println("sendSegmentSocket", segmentIndex);
   int idx = segmentIndex;
-  if (segmentIndex == 2) idx = 5;
-  if (segmentIndex == 3) idx = 6;
   GetRequest get = new GetRequest("http://0.0.0.0:3000/on_segment/" + idx);
   get.send();
   System.out.println("Reponse Content: " + get.getContent());
@@ -249,21 +255,14 @@ void keyPressed() {
     case 's': 
     case 'd': 
     case 'W': 
-    case 'A': 
+    case 'A': wasd_command(key); break;
     case 'S': 
     case 'D': wasd_command(key); break;
     case '.': toggleDebug(!debug); break;
     case 'r': startReadingPlate(); break;
     case 'c': sendClearMessage(); break;
-    case '1': readSegment(0); break;
-    case '2': readSegment(1); break;
-    case '3': readSegment(2); break;
-    case '4': readSegment(3); break;
-    case '5': readSegment(4); break;
-    case '6': readSegment(5); break;
-    case '7': readSegment(6); break;
-    case '8': readSegment(7); break;
-    case '9': readSegment(8); break;
-    case '0': readSegment(9); break;
+    case '1': sendSegmentSocketTest(1); break;
+    case '2': sendSegmentSocketTest(2); break;
+    case '3': sendSegmentSocketTest(3); break;
   }
 }
