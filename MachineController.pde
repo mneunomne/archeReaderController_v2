@@ -221,7 +221,7 @@ class MachineController {
         sendSegmentSocket(current_segment_index);
         break;
       case JUMPING_ROW:
-        current_segment_index += segment_rows;
+        current_segment_index += segment_rows + 1;
         if (nextDir == 1) {
           nextDir = -1;
         } else {

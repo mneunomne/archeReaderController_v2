@@ -69,11 +69,11 @@ PFont myFont;
 
 int current_segment_index = 0;
 
-int segment_rows = 5;
+int segment_rows = 4;
 int segment_cols = 4;
 
-int RECT_HEIGHT = 5000; // 6000
-int RECT_WIDTH  = 5100; // 6000
+int RECT_WIDTH  = 4800; // 6000
+int RECT_HEIGHT = 4800; // 6000
 
 int current_row_index = 0;
 int current_col_index = 0;
